@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kasir Toko Pro</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{--bg:#0f1115; --card:#1a1d23; --text:#e5e7eb; --muted:#9ca3af; --primary:#10b981; --danger:#ef4444; --border:#2a2f3a;}
+  *{box-sizing:border-box;font-family:Inter, Segoe UI, sans-serif}
+  body{background:var(--bg);color:var(--text);margin:0;padding:20px}
+.login-box{max-width:400px;margin:60px auto;text-align:center}
+.wrap{max-width:1200px;margin:auto;display:grid;grid-template-columns:1.5fr 1fr;gap:20px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px}
+.tabs{display:flex;gap:8px;margin-bottom:15px}
+.tab{padding:8px 14px;border:1px solid var(--border);background:#14171c;color:var(--text);border-radius:8px;cursor:pointer}
+.tab.active{background:var(--primary);color:#000;border-color:var(--primary)}
+.produk{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;max-height:420px;overflow-y:auto}
+.item{border:1px solid var(--border);border-radius:12px;padding:10px;text-align:center;cursor:pointer;background:#14171c;position:relative}
+.item.habistok{opacity:0.4;cursor:not-allowed}
+.badge-stok{position:absolute;top:5px;right:5px;background:var(--danger);color:#fff;font-size:10px;padding:2px 5px;border-radius:4px}
+.item img{width:100%;height:80px;object-fit:cover;border-radius:8px;margin-bottom:6px}
+.keranjang{max-height:280px;overflow-y:auto}
+.k-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed var(--border)}
+  input{width:100%;padding:10px;border:1px solid var(--border);background:#14171c;color:var(--text);border-radius:8px;margin-top:6px}
+.total{font-size:22px;font-weight:700;color:var(--primary)}
+.btn{width:100%;padding:12px;border:none;border-radius:10px;font-weight:600;cursor:pointer}
+.btn-primary{background:var(--primary);color:#000}
+.btn-secondary{background:#2a2f3a;color:var(--text);margin-top:8px}
+.modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:99}
+.modal-content{background:var(--card);padding:20px;border-radius:16px;width:90%;max-width:500px;border:1px solid var(--border)}
+.tabel{width:100%;border-collapse:collapse;font-size:13px}
+.tabel th,.tabel td{border:1px solid var(--border);padding:8px;text-align:left}
+.tabel th{background:#14171c}
+.hide{display:none}
+.logo-preview{width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-box card" id="loginBox">
+  <h2>Login Kasir</h2>
+  <input type="text" id="namaKasir" placeholder="Masukkan Nama Kasir">
+  <select id="roleKasir"><option value="Kasir">Kasir</option><option value="Admin">Admin</option></select>
+  <button class="btn btn-primary" onclick="login()">Masuk</button>
+</div>
+
+<!-- APP -->
+<div id="app" class="hide">
+<div class="header">
+  <div style="display:flex;align-items:center;gap:10px">
+    <img id="logoHeader" class="logo-preview">
+    <div>
+      <h1 id="namaTokoHeader" style="margin:0;font-size:20px;text-align:left">Toko Saya</h1>
+      <small id="infoKasir" style="color:var(--muted)"></small>
+    </div>
+  </div>
+  <div>
+    <button onclick="bukaBackup()" class="btn-secondary" style="width:auto;padding:8px 12px">💾 Backup</button>
+    <button onclick="bukaProfil()" class="btn-secondary" style="width:auto;padding:8px 12px">⚙️ Profil</button>
+    <button onclick="logout()" class="btn-secondary" style="width:auto;padding:8px 12px;background:var(--danger)">Logout</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="showTab('kasir',this)">Kasir</button>
+  <button class="tab" onclick="showTab('laporan',this)">Laporan</button>
+</div>
+
+<div class="wrap" id="tab-kasir">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h2>Daftar Produk</h2>
+      <button onclick="bukaModal()" style="border:none;background:none;color:var(--primary);cursor:pointer;font-weight:600">+ Tambah Produk</button>
+    </div>
+    <input type="text" id="cari" placeholder="Cari nama produk..." onkeyup="filter()">
+    <div class="produk" id="list-produk"></div>
+  </div>
+
+  <div class="card">
+    <h2>Keranjang Belanja</h2>
+    <div class="keranjang" id="keranjang"></div>
+    <label>Diskon Rp</label>
+    <input type="number" id="diskon" value="0" onkeyup="hitung()">
+    <h3 style="margin-top:12px">Metode Pembayaran</h3>
+    <div style="display:flex;gap:8px;margin:12px 0">
+      <button class="btn-secondary" style="flex:1" onclick="setMetode(this,'Tunai')">Tunai</button>
+      <button class="btn-secondary" style="flex:1" onclick="setMetode(this,'QRIS')">QRIS</button>
+      <button class="btn-secondary" style="flex:1" onclick="setMetode(this,'Transfer')">Transfer</button>
+    </div>
+    <div id="tunai-box">
+      <label>Uang Yang Dibayar</label>
+      <input type="number" id="bayar" onkeyup="hitung()">
+      <p>Kembalian: <span id="kembali">Rp 0</span></p>
+    </div>
+    <p class="total">Total Bayar: <span id="total">Rp 0</span></p>
+    <button class="btn btn-primary" onclick="bayar()">Bayar & Cetak Struk</button>
+    <button class="btn btn-secondary" onclick="reset()">Kosongkan Keranjang</button>
+  </div>
+</div>
+
+<!-- TAB LAPORAN -->
+<div class="card" id="tab-laporan" style="display:none">
+  <h2>Laporan Penjualan</h2>
+  <button class="btn btn-primary" onclick="exportExcel()">📊 Export ke Excel</button>
+  <div style="overflow-x:auto;margin-top:15px">
+    <table class="tabel"><thead><tr><th>Tanggal</th><th>Kasir</th><th>Item</th><th>Metode</th><th>Total</th></tr></thead><tbody id="isi-laporan"></tbody></table>
+  </div>
+</div>
+</div>
+
+<!-- MODAL PRODUK DENGAN STOK -->
+<div class="modal" id="modal"><div class="modal-content"><h2>Tambah/Edit Produk</h2>
+<input id="editId" type="hidden">
+<input id="nama" placeholder="Nama Produk">
+<input id="harga" type="number" placeholder="Harga">
+<input id="stok" type="number" placeholder="Stok Awal">
+<input type="file" id="foto" accept="image/*">
+<img id="preview" style="width:100%;height:100px;object-fit:cover;border-radius:8px;margin-top:8px;display:none">
+<button class="btn btn-primary" onclick="simpan()" style="margin-top:10px">Simpan</button>
+<button class="btn btn-secondary" onclick="tutupModal()">Batal</button></div></div>
+
+<!-- MODAL LAINNYA -->
+<div class="modal" id="modalBackup"><div class="modal-content"><h2>Backup & Restore</h2><button class="btn btn-primary" onclick="downloadBackup()">📥 Download</button><input type="file" id="fileRestore" accept=".json" style="margin-top:10px"><button class="btn btn-secondary" onclick="restoreBackup()">📤 Restore</button><button class="btn btn-secondary" onclick="tutupBackup()">Tutup</button></div></div>
+<div class="modal" id="modalProfil"><div class="modal-content"><h2>Profil Toko</h2><input id="inputNamaToko" placeholder="Nama Toko"><input id="inputAlamat" placeholder="Alamat"><input id="inputTelepon" placeholder="No HP"><input type="file" id="inputLogo" accept="image/*"><img id="previewLogo" class="logo-preview" style="margin-top:8px;display:none"><button class="btn btn-primary" onclick="simpanProfil()" style="margin-top:10px">Simpan</button><button class="btn btn-secondary" onclick="tutupProfil()">Batal</button></div></div>
+
+<script>
+let profil = JSON.parse(localStorage.getItem('profil_toko')) || {nama:"Toko Saya",alamat:"",telepon:"",logo:""};
+let produk = JSON.parse(localStorage.getItem('produk_stok')) || [];
+let keranjang = [];
+let laporan = JSON.parse(localStorage.getItem('laporan_penjualan')) || [];
+let kasirAktif = JSON.parse(localStorage.getItem('kasir_aktif')) || null;
+let metode = 'Tunai';
+
+if(kasirAktif){document.getElementById('loginBox').classList.add('hide'); document.getElementById('app').classList.remove('hide'); loadApp();}
+
+function login(){let nama=document.getElementById('namaKasir').value; let role=document.getElementById('roleKasir').value; if(!nama) return alert('Isi nama'); kasirAktif={nama,role}; localStorage.setItem('kasir_aktif',JSON.stringify(kasirAktif)); location.reload();}
+function logout(){localStorage.removeItem('kasir_aktif'); location.reload();}
+function loadApp(){document.getElementById('infoKasir').innerText=`Login: ${kasirAktif.nama} - ${kasirAktif.role}`; loadProfil(); render(); renderLaporan();}
+function showTab(tab,el){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); document.getElementById('tab-kasir').style.display=tab=='kasir'?'grid':'none'; document.getElementById('tab-laporan').style.display=tab=='laporan'?'block':'none';}
+function loadProfil(){document.getElementById('namaTokoHeader').innerText=profil.nama; document.getElementById('logoHeader').src=profil.logo||'https://via.placeholder.com/60/10b981/000';}
+
+// PRODUK + STOK
+document.getElementById('foto').onchange=e=>{let f=e.target.files[0]; if(f){let r=new FileReader(); r.onload=()=>{document.getElementById('preview').src=r.result; document.getElementById('preview').style.display='block'}; r.readAsDataURL(f)}}
+function bukaModal(){document.getElementById('modal').style.display='flex'}
+function tutupModal(){document.getElementById('modal').style.display='none'; document.getElementById('editId').value='';}
+function simpan(){
+  let id=document.getElementById('editId').value||Date.now();
+  let data={id:id*1,nama:document.getElementById('nama').value,harga:parseInt(document.getElementById('harga').value),stok:parseInt(document.getElementById('stok').value)||0,foto:document.getElementById('preview').src||'https://via.placeholder.com/120'};
+  if(!data.nama||!data.harga) return alert('Lengkapi');
+  let index=produk.findIndex(p=>p.id==id); if(index>=0) produk[index]=data; else produk.push(data);
+  localStorage.setItem('produk_stok',JSON.stringify(produk)); render(); tutupModal();
+}
+function render(){
+  let list=document.getElementById('list-produk'); list.innerHTML='';
+  produk.forEach(p=>{
+    list.innerHTML+=`<div class="item ${p.stok<=0?'habistok':''}" onclick="tambah(${p.id})">
+      ${p.stok<=5?`<span class="badge-stok">Stok:${p.stok}</span>`:''}
+      <img src="${p.foto}"><b>${p.nama}</b><br><small>Rp ${p.harga.toLocaleString('id-ID')}</small>
+      <br><small style="color:var(--muted)">Stok: ${p.stok}</small>
+    </div>`
+  });
+}
+function tambah(id){
+  let p=produk.find(x=>x.id==id);
+  if(p.stok<=0) return alert('Stok habis!');
+  let item=keranjang.find(k=>k.id==id);
+  if(item){if(item.jumlah>=p.stok) return alert('Stok tidak cukup'); item.jumlah++;}
+  else{keranjang.push({...p,jumlah:1});}
+  renderKeranjang(); hitung();
+}
+function renderKeranjang(){
+  let k=document.getElementById('keranjang'); k.innerHTML='';
+  if(keranjang.length==0){k.innerHTML='<p style="color:var(--muted);text-align:center">Keranjang kosong</p>'; return;}
+  keranjang.forEach(i=>{k.innerHTML+=`<div class="k-item"><div>${i.nama} x${i.jumlah}</div><div><button onclick="ubah(${i.id},-1)">-</button><button onclick="ubah(${i.id},1)">+</button></div></div>`})
+}
+function ubah(id,val){
+  let item=keranjang.find(k=>k.id==id); let p=produk.find(x=>x.id==id);
+  item.jumlah+=val;
+  if(item.jumlah<=0) keranjang=keranjang.filter(k=>k.id!=id);
+  if(item.jumlah>p.stok) {alert('Stok tidak cukup'); item.jumlah=p.stok;}
+  renderKeranjang(); hitung();
+}
+function setMetode(el,m){document.querySelectorAll('.btn-secondary').forEach(b=>b.style.borderColor='var(--border)'); el.style.borderColor='var(--primary)'; metode=m; document.getElementById('tunai-box').style.display=m=='Tunai'?'block':'none'}
+function hitung(){let subtotal=keranjang.reduce((a,b)=>a+b.harga*b.jumlah,0); let diskon=parseInt(document.getElementById('diskon').value)||0; let total=subtotal-diskon; document.getElementById('total').innerText='Rp '+total.toLocaleString('id-ID'); let bayar=parseInt(document.getElementById('bayar').value)||0; document.getElementById('kembali').innerText='Rp '+(bayar-total).toLocaleString('id-ID');}
+
+// BAYAR + KURANGI STOK
+async function bayar(){
+  if(keranjang.length==0) return alert('Keranjang kosong');
+  let total=parseInt(document.getElementById('total').innerText.replace(/[^0-9]/g,''));
+  if(metode=='Tunai'){let bayar=parseInt(document.getElementById('bayar').value)||0; if(bayar<total) return alert('Uang kurang')}
+
+  // KURANGI STOK
+  keranjang.forEach(i=>{
+    let p=produk.find(x=>x.id==i.id); p.stok-=i.jumlah;
+  });
+  localStorage.setItem('produk_stok',JSON.stringify(produk));
+
+  // CETAK STRUK
+  const {jsPDF}=window.jspdf; const doc=new jsPDF({unit:'mm',format:[80,180]});
+  if(profil.logo){const img=new Image(); img.src=profil.logo; doc.addImage(img,'PNG',25,5,30,15);}
+  doc.setFontSize(11); doc.text(profil.nama,40,25,{align:'center'});
+  doc.text(`Kasir: ${kasirAktif.nama}`,10,35); doc.text(new Date().toLocaleString('id-ID'),10,40);
+  let y=48; keranjang.forEach(i=>{doc.text(`${i.nama} x${i.jumlah}`,10,y); doc.text(`Rp ${(i.harga*i.jumlah).toLocaleString('id-ID')}`,50,y); y+=6});
+  y+=4; doc.line(10,y,70,y); y+=6; doc.text(`Total: Rp ${total.toLocaleString('id-ID')}`,10,y); doc.save(`struk.pdf`);
+
+  // SIMPAN LAPORAN
+  laporan.push({tanggal:new Date().toLocaleString('id-ID'),kasir:kasirAktif.nama,item:keranjang,metode:metode,total:total});
+  localStorage.setItem('laporan_penjualan',JSON.stringify(laporan)); localStorage.setItem('produk_stok',JSON.stringify(produk));
+  render(); renderLaporan(); reset(); alert('Transaksi berhasil! Stok otomatis berkurang');
+}
+
+function reset(){keranjang=[]; document.getElementById('bayar').value=''; document.getElementById('diskon').value=0; renderKeranjang(); hitung()}
+function filter(){let q=document.getElementById('cari').value.toLowerCase(); document.querySelectorAll('.item').forEach(i=>{i.style.display=i.innerText.toLowerCase().includes(q)?'':'none'})}
+function renderLaporan(){let isi=document.getElementById('isi-laporan'); isi.innerHTML=''; laporan.reverse().forEach(l=>{isi.innerHTML+=`<tr><td>${l.tanggal}</td><td>${l.kasir}</td><td>${l.item.map(i=>i.nama+' x'+i.jumlah).join(', ')}</td><td>${l.metode}</td><td>Rp ${l.total.toLocaleString('id-ID')}</td></tr>`})}
+function exportExcel(){let data=laporan.map(l=>({Tanggal:l.tanggal,Kasir:l.kasir,Item:l.item.map(i=>i.nama+' x'+i.jumlah).join(', '),Metode:l.metode,Total:l.total})); const ws=XLSX.utils.json_to_sheet(data); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"Laporan"); XLSX.writeFile(wb,"laporan.xlsx");}
+
+// BACKUP & PROFIL
+function bukaBackup(){document.getElementById('modalBackup').style.display='flex'}
+function tutupBackup(){document.getElementById('modalBackup').style.display='none'}
+function downloadBackup(){let data={profil,produk,laporan}; let a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(data)])); a.download=`backup.json`; a.click();}
+function restoreBackup(){let file=document.getElementById('fileRestore').files[0]; if(!file) return; let reader=new FileReader(); reader.onload=e=>{let data=JSON.parse(e.target.result); profil=data.profil||profil; produk=data.produk||[]; laporan=data.laporan||[]; localStorage.setItem('profil_toko',JSON.stringify(profil)); localStorage.setItem('produk_stok',JSON.stringify(produk)); localStorage.setItem('laporan_penjualan',JSON.stringify(laporan)); loadApp(); alert('Restore berhasil!'); tutupBackup();} reader.readAsText(file);}
+function bukaProfil(){document.getElementById('modalProfil').style.display='flex'; document.getElementById('inputNamaToko').value=profil.nama; document.getElementById('inputAlamat').value=profil.alamat; document.getElementById('inputTelepon').value=profil.telepon; if(profil.logo){document.getElementById('previewLogo').src=profil.logo; document.getElementById('previewLogo').style.display='block';}}
+function tutupProfil(){document.getElementById('modalProfil').style.display='none';}
+document.getElementById('inputLogo').onchange=e=>{let f=e.target.files[0]; if(f){let r=new FileReader(); r.onload=()=>{document.getElementById('previewLogo').src=r.result; document.getElementById('previewLogo').style.display='block'}; r.readAsDataURL(f)}}
+function simpanProfil(){profil.nama=document.getElementById('inputNamaToko').value; profil.alamat=document.getElementById('inputAlamat').value; profil.telepon=document.getElementById('inputTelepon').value; profil.logo=document.getElementById('previewLogo').src; localStorage.setItem('profil_toko',JSON.stringify(profil)); loadProfil(); tutupProfil();}
+</script>
+</body>
+  </html>
